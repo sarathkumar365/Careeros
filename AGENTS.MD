@@ -1,4 +1,4 @@
-# ApplyWise Agent Guide
+# Careeros Agent Guide
 
 ## Mission
 - Ship production-safe changes with minimal churn.
@@ -127,7 +127,7 @@
 - Require tests for behavior changes and regression-prone paths.
 - Require migration and rollout notes for schema or workflow-impacting changes.
 
-### ApplyWise Workflow Guardrails
+### Careeros Workflow Guardrails
 - Do not modify existing queue/event types in place; extend with new types if needed.
 - Preserve workflow stage sequencing unless a change is explicitly approved.
 - Require coordinated updates for Web, BFF, and AI when shared contracts change.

@@ -1,4 +1,4 @@
-const DB_NAME = 'applywise-upload-cache'
+const DB_NAME = 'careeros-upload-cache'
 const DB_VERSION = 1
 const STORE_NAME = 'files'
 const LAST_RESUME_KEY = 'lastResume'

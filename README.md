@@ -1,4 +1,4 @@
-# ApplyWise
+# Careeros
 
 AI-powered resume analysis and ATS scoring system.
 
@@ -18,15 +18,15 @@ source ~/.zshrc
   - If `postgres` role doesn’t exist (common on macOS/Homebrew), use your local user: `psql -U $(whoami)`  
   - On Linux you can also run `sudo -u postgres psql`  
   ```sql
-  CREATE USER applywise WITH PASSWORD 'applywise';
-  CREATE DATABASE applywise OWNER applywise;
-  ALTER SCHEMA public OWNER TO applywise;
-  GRANT ALL PRIVILEGES ON DATABASE applywise TO applywise;
-  GRANT USAGE, CREATE ON SCHEMA public TO applywise;
+  CREATE USER careeros WITH PASSWORD 'careeros';
+  CREATE DATABASE careeros OWNER careeros;
+  ALTER SCHEMA public OWNER TO careeros;
+  GRANT ALL PRIVILEGES ON DATABASE careeros TO careeros;
+  GRANT USAGE, CREATE ON SCHEMA public TO careeros;
   ```
 - Persist `DATABASE_URL` so new terminals have it (zsh example):  
   ```
-  echo 'export DATABASE_URL="postgresql://applywise:applywise@localhost:5432/applywise?schema=public"' >> ~/.zshrc
+  echo 'export DATABASE_URL="postgresql://careeros:careeros@localhost:5432/careeros?schema=public"' >> ~/.zshrc
   source ~/.zshrc
   ```
   For bash, append to `~/.bashrc` instead and `source ~/.bashrc`.
@@ -40,7 +40,7 @@ source ~/.zshrc
 ## Project Structure
 
 ```
-applywise/
+careeros/
 ├── apps/
 │   ├── web/        # Frontend - React + Vite
 │   └── bff/        # Backend for Frontend - NestJS

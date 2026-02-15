@@ -1,4 +1,4 @@
-# WebSocket → UI Flow (ApplyWise Editor)
+# WebSocket → UI Flow (Careeros Editor)
 
 ## Overview
 - WebSocket receives job events (score, checklist parsing/matching, resume parsing/tailoring) at `/jobs/{jobId}/events`.

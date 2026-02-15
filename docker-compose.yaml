@@ -3,7 +3,7 @@ version: '3.9'
 services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: applywise-rabbitmq
+    container_name: careeros-rabbitmq
     restart: unless-stopped
     ports:
       - "5672:5672"
@@ -22,7 +22,7 @@ services:
     build: ./services/ai
     ports:
       - "8989:8989"
-    container_name: applywise-ai-service
+    container_name: careeros-ai-service
     environment:
       - RABBITMQ_URL=amqp://default:default@rabbitmq:5672
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -33,7 +33,7 @@ services:
 
   bff:
     build: ./apps/bff
-    container_name: applywise-bff
+    container_name: careeros-bff
     ports:
       - "3001:3001"
     environment:
@@ -51,7 +51,7 @@ services:
       context: ./apps/web
       args:
         VITE_BFF_URL: http://localhost:3001
-    container_name: applywise-web
+    container_name: careeros-web
     ports:
       - "3000:3000"
     environment:
