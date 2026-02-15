@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: applywise-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: default
+      RABBITMQ_DEFAULT_PASS: default
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  ai-service:
+    build: ./services/ai
+    ports:
+      - "8989:8989"
+    container_name: applywise-ai-service
+    environment:
+      - RABBITMQ_URL=amqp://default:default@rabbitmq:5672
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  bff:
+    build: ./apps/bff
+    container_name: applywise-bff
+    ports:
+      - "3001:3001"
+    environment:
+      - RABBITMQ_URL=amqp://default:default@rabbitmq:5672
+      - AI_SERVICE_URL=http://ai-service:8989
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    restart: unless-stopped
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_BFF_URL: http://localhost:3001
+    container_name: applywise-web
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_BFF_URL=http://localhost:3001
+
+
+
+volumes:
+  rabbitmq_data:
+    driver: local

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Starts AI, BFF, and Web locally, teeing output to repo-root logs. On clean exit (Ctrl+C/TERM) it traps and kills the child processes it started; only non-child processes or abrupt kills (e.g., kill -9) can leave strays.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+LOG_FILE="${REPO_ROOT}/logs"
+PORT_WEB="${PORT_WEB:-8000}"
+PORT_BFF="${PORT_BFF:-3001}"
+PORT_AI="${PORT_AI:-8989}"
+
+# Mirror all stdout/stderr to the logs file while also showing it in the terminal.
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+log() {
+  printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
+}
+
+fail() {
+  log "ERROR: $*"
+  exit 1
+}
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+ensure_port_free() {
+  local name="$1" port="$2"
+  python3 - <<PY
+import socket, sys
+host = "localhost"
+name = "${name}"
+port = int("${port}")
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.settimeout(0.5)
+    if sock.connect_ex((host, port)) == 0:
+        sys.exit(f"{name} port {port} is already in use on {host}")
+PY
+  log "${name} port ${port} is free"
+}
+
+check_docker() {
+  require_cmd docker
+  docker info >/dev/null 2>&1 || fail "Docker is installed but the daemon is not running"
+  log "Docker daemon is available"
+}
+
+check_rabbitmq() {
+  require_cmd python3
+  python3 - <<'PY'
+import socket, sys
+
+host = "localhost"
+port = 5672
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.settimeout(2)
+    try:
+        sock.connect((host, port))
+    except OSError as exc:
+        sys.exit(f"RabbitMQ not reachable on {host}:{port} ({exc})")
+PY
+  log "RabbitMQ is reachable on localhost:5672"
+}
+
+start_service() {
+  local name="$1"
+  local service_dir="$2"
+  local env_assignment="$3"
+  shift 3
+
+  log "Starting ${name}..."
+  (
+    cd "${REPO_ROOT}/${service_dir}"
+    if [[ -n "${env_assignment}" ]]; then
+      env "${env_assignment}" "$@"
+    else
+      "$@"
+    fi
+  ) &
+  local pid=$!
+  SERVICES_PIDS+=("$pid")
+  log "${name} started (pid ${pid})"
+}
+
+cleanup() {
+  log "Stopping services..."
+  for pid in "${SERVICES_PIDS[@]:-}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+}
+
+main() {
+  require_cmd uv
+  require_cmd bun
+  require_cmd python3
+  check_docker
+  check_rabbitmq
+
+  ensure_port_free "Web" "${PORT_WEB}"
+  ensure_port_free "BFF" "${PORT_BFF}"
+  ensure_port_free "AI" "${PORT_AI}"
+
+  trap cleanup EXIT INT TERM
+  SERVICES_PIDS=()
+
+  start_service "AI" "services/ai" "PORT=${PORT_AI}" uv run python main.py
+  start_service "BFF" "apps/bff" "PORT=${PORT_BFF}" bun run start:dev
+  start_service "Web" "apps/web" "" bun run dev -- --port "${PORT_WEB}"
+
+  log "All services started with ports: Web=${PORT_WEB}, BFF=${PORT_BFF}, AI=${PORT_AI}. Press Ctrl+C to stop."
+  wait
+}
+
+main "$@"
