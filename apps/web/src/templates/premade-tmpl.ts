@@ -3,12 +3,12 @@
  * Registry of ready-to-use template configurations
  */
 
-import type { TemplateConfig } from '@templates/templateId'
-import { DocumentSetupSchema } from '@templates/shared/document-config'
 import { SECTION_IDS } from '@templates/template.types'
+import { DocumentSetupSchema } from '@templates/shared/document-config'
+import type { TemplateConfig } from '@templates/templateId'
 
 /**
- * Default template with all available sections
+ * Default template with core sections
  * Used as the starting point for new job applications
  * AI parsing uses this to generate schema for all sections
  */
@@ -17,12 +17,11 @@ export const DEFAULT_TEMPLATE: TemplateConfig = {
   sections: [
     { id: SECTION_IDS.PERSONAL_INFO, styleId: 'default' },
     { id: SECTION_IDS.SUMMARY, styleId: 'default' },
-    { id: SECTION_IDS.WORK_EXPERIENCE, styleId: 'default' },
-    { id: SECTION_IDS.EDUCATION, styleId: 'default' },
-    { id: SECTION_IDS.PROJECTS, styleId: 'default' },
     { id: SECTION_IDS.SKILLS, styleId: 'default' },
+    { id: SECTION_IDS.WORK_EXPERIENCE, styleId: 'default' },
+    { id: SECTION_IDS.PROJECTS, styleId: 'default' },
     { id: SECTION_IDS.CERTIFICATES, styleId: 'default' },
-    { id: SECTION_IDS.EXTRACURRICULARS, styleId: 'default' },
+    { id: SECTION_IDS.EDUCATION, styleId: 'default' },
   ],
 }
 Object.freeze(DEFAULT_TEMPLATE)
