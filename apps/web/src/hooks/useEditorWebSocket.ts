@@ -1,15 +1,19 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useResumeStore } from '@typst-compiler/resumeState'
-import { MessageType } from '@type/websocket.event.type'
-import type { QueryClient } from '@tanstack/react-query'
+import {
+  MessageType,
+  getFailedTaskType,
+  isTaskCompletedEvent,
+  isTaskFailedEvent,
+} from '@type/websocket.event.type'
 import type {
-  ChecklistMatchingEvent,
-  ChecklistParsingEvent,
+  ChecklistMatchingCompletedEvent,
+  ChecklistParsingCompletedEvent,
   JobFailedEvent,
-  ResumeParsingEvent,
-  ResumeTailoringEvent,
-  ScoreUpdatingEvent,
+  ResumeParsingCompletedEvent,
+  ResumeTailoringCompletedEvent,
+  ScoreUpdatingCompletedEvent,
   WebSocketMessage,
 } from '@type/websocket.event.type'
 import { API_BASE_URL } from '@/api/jobs'
@@ -19,11 +23,18 @@ interface UseEditorWebSocketOptions {
   enabled: boolean
 }
 
+const MAX_RECONNECT_ATTEMPTS = 3
+const RECONNECT_BASE_DELAY_MS = 1000
+
+function nextReconnectDelay(attempt: number): number {
+  return RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1)
+}
+
 function handleScoreUpdating(
-  message: ScoreUpdatingEvent,
+  message: ScoreUpdatingCompletedEvent,
   context: {
     jobId: string
-    queryClient: QueryClient
+    queryClient: ReturnType<typeof useQueryClient>
   },
 ): void {
   context.queryClient.setQueryData(
@@ -39,10 +50,10 @@ function handleScoreUpdating(
 }
 
 function handleChecklistParsing(
-  message: ChecklistParsingEvent,
+  message: ChecklistParsingCompletedEvent,
   context: {
     jobId: string
-    queryClient: QueryClient
+    queryClient: ReturnType<typeof useQueryClient>
   },
 ): void {
   context.queryClient.setQueryData(
@@ -58,10 +69,10 @@ function handleChecklistParsing(
 }
 
 function handleChecklistMatching(
-  message: ChecklistMatchingEvent,
+  message: ChecklistMatchingCompletedEvent,
   context: {
     jobId: string
-    queryClient: QueryClient
+    queryClient: ReturnType<typeof useQueryClient>
   },
 ): void {
   context.queryClient.setQueryData(
@@ -77,10 +88,10 @@ function handleChecklistMatching(
 }
 
 function handleResumeParsing(
-  message: ResumeParsingEvent,
+  message: ResumeParsingCompletedEvent,
   context: {
     jobId: string
-    queryClient: QueryClient
+    queryClient: ReturnType<typeof useQueryClient>
   },
 ): void {
   context.queryClient.setQueryData(
@@ -96,10 +107,10 @@ function handleResumeParsing(
 }
 
 function handleResumeTailoring(
-  message: ResumeTailoringEvent,
+  message: ResumeTailoringCompletedEvent,
   context: {
     jobId: string
-    queryClient: QueryClient
+    queryClient: ReturnType<typeof useQueryClient>
   },
 ): void {
   context.queryClient.setQueryData(
@@ -114,34 +125,29 @@ function handleResumeTailoring(
   )
 }
 
-function handleJobFailed(
+function updateFailedTaskInCache(
   message: JobFailedEvent,
   context: {
-    setParsingResume: (isLoading: boolean) => void
-    setParsingChecklist: (isLoading: boolean) => void
-    setTailoringResume: (isLoading: boolean) => void
-    setMatchingTailoredResume: (isLoading: boolean) => void
+    jobId: string
+    queryClient: ReturnType<typeof useQueryClient>
   },
 ): void {
-  console.warn('[Editor WS] Job failed:', message.error || 'unknown task')
-
-  // Turn off the appropriate loading spinner based on which task failed
-  if (message.error === 'resume.parsing') {
-    context.setParsingResume(false)
-  } else if (message.error === 'resume.tailoring') {
-    context.setTailoringResume(false)
-    context.setMatchingTailoredResume(false)
-  } else if (message.error === 'checklist.parsing') {
-    context.setParsingChecklist(false)
-  } else if (message.error === 'checklist.matching') {
-    context.setMatchingTailoredResume(false)
-  } else {
-    // Unknown task type, turn off all spinners to be safe
-    context.setParsingResume(false)
-    context.setParsingChecklist(false)
-    context.setTailoringResume(false)
-    context.setMatchingTailoredResume(false)
+  const failedTaskType = getFailedTaskType(message)
+  if (!failedTaskType) {
+    return
   }
+
+  context.queryClient.setQueryData(['jobApplication', context.jobId], (old: any) => {
+    if (!old) return old
+
+    return {
+      ...old,
+      failedTasks: {
+        ...old.failedTasks,
+        [failedTaskType]: new Date().toISOString(),
+      },
+    }
+  })
 }
 
 export default function useEditorWebSocket({
@@ -150,128 +156,185 @@ export default function useEditorWebSocket({
 }: UseEditorWebSocketOptions) {
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
-  const hasConnectedRef = useRef(false)
+  const reconnectAttemptsRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const shouldReconnectRef = useRef(true)
+
   const setParsingResume = useResumeStore((state) => state.setParsingResume)
-  const setParsingChecklist = useResumeStore(
-    (state) => state.setParsingChecklist,
-  )
+  const setParsingChecklist = useResumeStore((state) => state.setParsingChecklist)
   const setTailoringResume = useResumeStore((state) => state.setTailoringResume)
   const setMatchingTailoredResume = useResumeStore(
     (state) => state.setMatchingTailoredResume,
   )
-  const isMatchingTailoredResume = useResumeStore(
-    (state) => state.isMatchingTailoredResume,
-  )
 
   useEffect(() => {
-    if (!jobId || !enabled || hasConnectedRef.current) {
-      console.log('[Editor WS] Skipping connection:', {
-        jobId,
-        enabled,
-        hasConnected: hasConnectedRef.current,
-      })
+    if (!jobId || !enabled) {
       return
     }
 
-    // Mark that we've connected for this job
-    hasConnectedRef.current = true
+    shouldReconnectRef.current = true
+    reconnectAttemptsRef.current = 0
 
     const wsBaseUrl = API_BASE_URL.replace(/^http/, 'ws').replace(/\/$/, '')
     const wsUrl = `${wsBaseUrl}/jobs/${jobId}/events`
 
-    const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
-
-    ws.onopen = () => {
-      console.log('[Editor WS] Connected for job:', jobId)
+    const resetAllAIFlags = () => {
+      setParsingResume(false)
+      setParsingChecklist(false)
+      setTailoringResume(false)
+      setMatchingTailoredResume(false)
     }
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WebSocketMessage
+    const handleFailedMessage = (message: JobFailedEvent) => {
+      const failedTaskType = getFailedTaskType(message)
+      console.warn('[Editor WS] Task failed:', failedTaskType ?? 'unknown')
 
-        if (message.type === MessageType.FAILED) {
-          handleJobFailed(message, {
-            setParsingResume,
-            setParsingChecklist,
-            setTailoringResume,
-            setMatchingTailoredResume,
-          })
+      updateFailedTaskInCache(message, { jobId, queryClient })
 
-          // Update query cache with new failed task
-          queryClient.setQueryData(['jobApplication', jobId], (old: any) => {
-            if (!old || !message.error) return old
-            return {
-              ...old,
-              failedTasks: {
-                ...old.failedTasks,
-                [message.error]: new Date().toISOString(),
-              },
-            }
-          })
-        } else if (message.type === MessageType.SCORE_UPDATING) {
-          handleScoreUpdating(message, { jobId, queryClient })
-        } else if (message.type === MessageType.CHECKLIST_MATCHING) {
-          handleChecklistMatching(message, { jobId, queryClient })
-          // If this is after tailoring, clear the matching state
-          if (isMatchingTailoredResume) {
-            setMatchingTailoredResume(false)
-          }
-        } else if (message.type === MessageType.CHECKLIST_PARSING) {
-          handleChecklistParsing(message, { jobId, queryClient })
-          setParsingChecklist(false)
-        } else if (message.type === MessageType.RESUME_PARSING) {
-          handleResumeParsing(message, { jobId, queryClient })
+      switch (failedTaskType) {
+        case 'resume.parsing':
           setParsingResume(false)
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        } else if (message.type === MessageType.RESUME_TAILORING) {
-          handleResumeTailoring(message, { jobId, queryClient })
-          // After tailoring completes, start waiting for checklist matching
+          break
+        case 'checklist.parsing':
+          setParsingChecklist(false)
+          break
+        case 'resume.tailoring':
           setTailoringResume(false)
-          setMatchingTailoredResume(true)
-        } else {
-          console.log('[Editor WS] unknown event ', message)
-          throw new Error('[Editor WS] Unknown event should never happens')
+          setMatchingTailoredResume(false)
+          break
+        case 'checklist.matching':
+          setMatchingTailoredResume(false)
+          break
+        case 'score.updating':
+          break
+        default:
+          resetAllAIFlags()
+      }
+    }
+
+    const connect = () => {
+      const ws = new WebSocket(wsUrl)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        reconnectAttemptsRef.current = 0
+        console.log('[Editor WS] Connected for job:', jobId)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketMessage
+
+          if (isTaskFailedEvent(message)) {
+            handleFailedMessage(message)
+            return
+          }
+
+          if (!isTaskCompletedEvent(message)) {
+            console.warn('[Editor WS] Unknown event payload:', message)
+            resetAllAIFlags()
+            return
+          }
+
+          switch (message.type) {
+            case MessageType.SCORE_UPDATING_COMPLETED:
+              handleScoreUpdating(message, { jobId, queryClient })
+              break
+            case MessageType.CHECKLIST_MATCHING_COMPLETED:
+              handleChecklistMatching(message, { jobId, queryClient })
+              setMatchingTailoredResume(false)
+              break
+            case MessageType.CHECKLIST_PARSING_COMPLETED:
+              handleChecklistParsing(message, { jobId, queryClient })
+              setParsingChecklist(false)
+              break
+            case MessageType.RESUME_PARSING_COMPLETED:
+              handleResumeParsing(message, { jobId, queryClient })
+              setParsingResume(false)
+              break
+            case MessageType.RESUME_TAILORING_COMPLETED:
+              handleResumeTailoring(message, { jobId, queryClient })
+              setTailoringResume(false)
+              setMatchingTailoredResume(true)
+              break
+            default:
+              console.warn('[Editor WS] Unhandled completed event:', message)
+              resetAllAIFlags()
+          }
+        } catch (error) {
+          console.warn('[Editor WS] Failed to parse message:', error)
+          resetAllAIFlags()
         }
-      } catch (error) {
-        console.warn('[Editor WS] Failed to parse message:', error)
+      }
+
+      ws.onerror = (error) => {
+        console.error('[Editor WS] Error:', error)
+      }
+
+      ws.onclose = (event) => {
+        if (wsRef.current === ws) {
+          wsRef.current = null
+        }
+
+        console.log('[Editor WS] Disconnected for job:', jobId, event.code)
+
+        if (!shouldReconnectRef.current) {
+          return
+        }
+
+        if (event.code === 1000) {
+          return
+        }
+
+        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          console.warn('[Editor WS] Max reconnect attempts reached for job:', jobId)
+          return
+        }
+
+        reconnectAttemptsRef.current += 1
+        const delayMs = nextReconnectDelay(reconnectAttemptsRef.current)
+
+        console.log(
+          '[Editor WS] Scheduling reconnect attempt',
+          reconnectAttemptsRef.current,
+          'in',
+          delayMs,
+          'ms for job:',
+          jobId,
+        )
+
+        reconnectTimerRef.current = setTimeout(() => {
+          if (shouldReconnectRef.current) {
+            connect()
+          }
+        }, delayMs)
       }
     }
 
-    ws.onerror = (error) => {
-      console.error('[Editor WS] Error:', error)
-    }
-
-    ws.onclose = () => {
-      console.log('[Editor WS] Disconnected for job:', jobId)
-      if (wsRef.current === ws) {
-        wsRef.current = null
-      }
-    }
+    connect()
 
     return () => {
-      if (
-        ws.readyState === WebSocket.OPEN ||
-        ws.readyState === WebSocket.CONNECTING
-      ) {
-        console.log('[Editor WS] Closing WebSocket')
+      shouldReconnectRef.current = false
+
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+
+      const ws = wsRef.current
+      wsRef.current = null
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        console.log('[Editor WS] Closing WebSocket for job:', jobId)
         ws.close()
       }
-      wsRef.current = null
     }
   }, [
-    jobId,
     enabled,
+    jobId,
     queryClient,
-    setParsingResume,
-    setParsingChecklist,
-    setTailoringResume,
     setMatchingTailoredResume,
-    isMatchingTailoredResume,
+    setParsingChecklist,
+    setParsingResume,
+    setTailoringResume,
   ])
-
-  useEffect(() => {
-    // Reset connection flag when jobId changes
-    hasConnectedRef.current = false
-  }, [jobId])
 }

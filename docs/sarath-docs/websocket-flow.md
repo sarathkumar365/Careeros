@@ -1,52 +1,60 @@
-# WebSocket Flow in Applywise
+# WebSocket Flow in Careeros
 
-How real-time job updates travel from the backend to the UI.
+How real-time task updates move from BFF to the editor UI.
 
-## Key pieces
-- **Endpoint:** `GET /jobs/:jobId/events` (Fastify WebSocket route in `JobStreamGateway`).
-- **Subscription manager:** `JobEventsSubscriptionManager` keeps a `Map<jobId, listeners>` and forwards events to the right sockets.
-- **Consumer:** `JobCompletionHandler` consumes RabbitMQ job events and publishes them into the manager.
-- **Frontend hook:** `useEditorWebSocket` opens the WS when the editor loads with `jobId` and updates React Query + stores on incoming messages.
+## Current backend components
+- Route + connection manager: `WebSocketService` (`apps/bff/src/websocket/websocket.service.ts`)
+- Endpoint: `GET /jobs/:jobId/events`
+- Event source: `WorkflowService` and task bundles call `websocket.broadcast(jobId, event)`
+
+## Current frontend component
+- Hook: `useEditorWebSocket` (`apps/web/src/hooks/useEditorWebSocket.ts`)
 
 ## Connection lifecycle
 ```mermaid
 sequenceDiagram
-  participant FE as Frontend
-  participant WS as JobStreamGateway
-  participant SM as SubscriptionManager
+  participant FE as Frontend Editor
+  participant WS as BFF WebSocketService
 
   FE->>WS: Connect /jobs/{jobId}/events
-  WS->>FE: send jobAccepted
-  WS->>SM: subscribe(jobId, listener)
-  FE-->>WS: stays open until leave/timeout
+  WS->>WS: registerConnection(jobId, socket)
+  FE-->>WS: stays open during editor session
   FE->>WS: close tab or route change
-  WS->>SM: unsubscribe(jobId, listener)
+  WS->>WS: unregisterConnection(jobId, socket)
 ```
 
 ## Event delivery path
 ```mermaid
 flowchart LR
-  AI[AI worker] -->|publish completion| MQ[RabbitMQ jobs.events]
-  MQ -->|binding job.#| HC[JobCompletionHandler]
-  HC -->|publish to jobId| SM[SubscriptionManager]
-  SM -->|call listener| WS[WebSocket connection]
-  WS -->|send JSON| FE[Editor UI]
+  AI[AI Worker] -->|job.* events| MQ[RabbitMQ jobs.events]
+  MQ --> DQ[DequeueService]
+  DQ --> WF[WorkflowService]
+  WF --> TASKS[Task onSuccess/onFailed]
+  TASKS --> WS[WebSocketService.broadcast]
+  WS --> FE[useEditorWebSocket]
 ```
 
-## Frontend usage
-- Navigation to `/editor?jobId=...` triggers `useEditorWebSocket`.
-- It builds `ws(s)://<bff>/jobs/{jobId}/events`, opens the socket, and registers handlers.
-- Messages update cached data and UI:
-  - `score.updating` → updates match percentage
-  - `checklist.parsing` / `checklist.matching` → updates checklist
-  - `resume.parsing` / `resume.tailoring` → updates resume structure and parsing/tailoring flags
-- Socket is closed on unmount/route change or by the 5-minute safety timeout.
+## Frontend behavior
+- `useEditorWebSocket` opens `ws(s)://<bff>/jobs/{jobId}/events`.
+- Completed/failed task messages are parsed by type guards in `src/type/websocket.event.type.ts`.
+- The hook updates React Query cache key `['jobApplication', jobId]`.
+- `Editor.tsx` and `Checklist.tsx` re-render from cache updates.
+- Resume sync hook pushes `tailoredResume` into Zustand and triggers Typst recompile.
 
-## Backend usage
-- `JobStreamGateway` registers the WS route and subscribes each connection to its `jobId`.
-- `JobEventsSubscriptionManager.publish(jobId, event)` fan-outs only to listeners for that `jobId`.
-- `JobCompletionHandler` receives job events from RabbitMQ (`jobs.events` exchange, binding `job.#`), ACKs, runs side effects, then calls `publish`.
+## Supported event types
+- Completed:
+  - `resume.parsing.completed`
+  - `resume.tailoring.completed`
+  - `checklist.parsing.completed`
+  - `checklist.matching.completed`
+  - `score.updating.completed`
+- Failed:
+  - `resume.parsing.failed`
+  - `resume.tailoring.failed`
+  - `checklist.parsing.failed`
+  - `checklist.matching.failed`
+  - `score.updating.failed`
 
 ## Notes
-- One WebSocket per editor session (per job). Multiple browser tabs mean multiple connections; acceptable for this workflow.
-- Reconnect/backoff is not implemented in the hook; could be added if resilience is needed.
+- BFF closes idle sockets after `WEBSOCKET_IDLE_TIMEOUT_MS` (default 5 minutes).
+- Frontend hook implements reconnect with exponential backoff and max attempts.

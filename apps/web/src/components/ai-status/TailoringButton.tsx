@@ -127,6 +127,10 @@ export function TailoringButton({
   ])
 
   const handleClick = () => {
+    if (isLoading) {
+      return
+    }
+
     console.log('=== Tailoring Data ===')
     console.log('Job ID:', jobId)
     console.log('Checklist with user selections:', checklist)
@@ -138,7 +142,10 @@ export function TailoringButton({
 
   // Determine if button is in loading state
   const isLoading =
-    !isChecklistReady || isTailoringResume || isMatchingTailoredResume
+    !isChecklistReady ||
+    isTailoringResume ||
+    isMatchingTailoredResume ||
+    tailorMutation.isPending
 
   // Determine button content
   const currentMessages = getCurrentMessages()

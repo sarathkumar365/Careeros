@@ -1,6 +1,21 @@
-# Getting Started
+# Documentation Index
 
-This document is essential for getting started with the project.
+Start here, then drill down.
+
+## Primary architecture reference
+
+- `architecture-source-of-truth.md` - Canonical architecture and flow map rooted in current code paths.
+
+## Flow references
+
+- `high-level.md` - Five-stage workflow summary.
+- `ws-to-ui-flow.md` - Frontend cache/store update path for websocket events.
+- `sarath-docs/rabbitmq-flow.md` - Current RabbitMQ topology and BFF/AI message flow.
+- `sarath-docs/websocket-flow.md` - Current websocket lifecycle and event delivery.
+
+## Getting started
+
+This section is essential for onboarding and local context.
 
 ## Technology Stack
 

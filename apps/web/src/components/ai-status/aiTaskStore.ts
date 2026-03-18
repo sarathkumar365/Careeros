@@ -56,6 +56,7 @@ const initialTaskStatuses: Record<TaskMessageType, TaskStatus> = {
   'resume.tailoring': 'idle',
   'checklist.parsing': 'idle',
   'checklist.matching': 'idle',
+  'score.updating': 'idle',
 }
 
 const initialRetryState: RetryState = {

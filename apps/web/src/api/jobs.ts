@@ -2,12 +2,35 @@ import type { Checklist } from '@type/checklist'
 
 export const API_BASE_URL: string = import.meta.env.VITE_BFF_URL ?? '/api'
 
-// Task message types that can fail
-export type TaskMessageType =
-  | 'resume.parsing'
-  | 'resume.tailoring'
-  | 'checklist.parsing'
-  | 'checklist.matching'
+export const TASK_MESSAGE_TYPES = [
+  'resume.parsing',
+  'resume.tailoring',
+  'checklist.parsing',
+  'checklist.matching',
+  'score.updating',
+] as const
+
+export type TaskMessageType = (typeof TASK_MESSAGE_TYPES)[number]
+
+export const TASK_COMPLETED_RESULT_TYPES = [
+  'resume.parsing.completed',
+  'resume.tailoring.completed',
+  'checklist.parsing.completed',
+  'checklist.matching.completed',
+  'score.updating.completed',
+] as const
+
+export const TASK_FAILED_RESULT_TYPES = [
+  'resume.parsing.failed',
+  'resume.tailoring.failed',
+  'checklist.parsing.failed',
+  'checklist.matching.failed',
+  'score.updating.failed',
+] as const
+
+export type TaskCompletedResultType = (typeof TASK_COMPLETED_RESULT_TYPES)[number]
+export type TaskFailedResultType = (typeof TASK_FAILED_RESULT_TYPES)[number]
+export type TaskResultType = TaskCompletedResultType | TaskFailedResultType
 
 // Failed tasks map: task message type -> ISO timestamp when it failed
 export type FailedTasksMap = Partial<Record<TaskMessageType, string>>

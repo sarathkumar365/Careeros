@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAITaskStore } from './aiTaskStore'
-import { retryFailedTasks } from '@/api/jobs'
+import { TASK_MESSAGE_TYPES, retryFailedTasks } from '@/api/jobs'
 
 const HOLD_DURATION = 1500 // 1.5 seconds
 
@@ -28,6 +28,7 @@ export function RetryButton({ jobId, jsonSchema }: RetryButtonProps) {
   const storeCompleteHold = useAITaskStore((state) => state.completeHold)
   const setRetrying = useAITaskStore((state) => state.setRetrying)
   const setHovering = useAITaskStore((state) => state.setHovering)
+  const getFirstFailedTask = useAITaskStore((state) => state.getFirstFailedTask)
 
   const retryMutation = useMutation({
     mutationFn: async () => {
@@ -61,7 +62,7 @@ export function RetryButton({ jobId, jsonSchema }: RetryButtonProps) {
   }, [])
 
   const startHold = () => {
-    storeStartHold('resume.tailoring') // Default to tailoring for now
+    storeStartHold(getFirstFailedTask() ?? 'resume.tailoring')
     holdStartRef.current = Date.now()
 
     holdTimerRef.current = setInterval(() => {
@@ -95,11 +96,9 @@ export function RetryButton({ jobId, jsonSchema }: RetryButtonProps) {
       queryClient.setQueryData(['jobApplication', jobId], (old: any) => {
         if (!old) return old
         const newFailedTasks = { ...old.failedTasks }
-        // Clear all known task types
-        delete newFailedTasks['checklist.parsing']
-        delete newFailedTasks['resume.parsing']
-        delete newFailedTasks['resume.tailoring']
-        delete newFailedTasks['checklist.matching']
+        for (const taskType of TASK_MESSAGE_TYPES) {
+          delete newFailedTasks[taskType]
+        }
         return { ...old, failedTasks: newFailedTasks }
       })
     }

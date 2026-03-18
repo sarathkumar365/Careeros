@@ -8,7 +8,22 @@ interface JobRouteParams {
   jobId?: string;
 }
 
-const SAFETY_TIMEOUT_MS = 5 * 60 * 1000; // 5 min timeout as safeguard
+const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const WS_OPEN_STATE = 1;
+
+function resolveIdleTimeoutMs(): number {
+  const raw = process.env.WEBSOCKET_IDLE_TIMEOUT_MS;
+  if (!raw) {
+    return DEFAULT_IDLE_TIMEOUT_MS;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_IDLE_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
 
 /**
  * WebSocket service that handles both connection management and event broadcasting
@@ -24,6 +39,8 @@ export class WebSocketService implements OnModuleInit {
   private readonly logger = new Logger(WebSocketService.name);
   private fastify: FastifyInstance | null = null;
   private readonly connections = new Map<string, Set<WebSocket>>();
+  private readonly socketTimeouts = new Map<WebSocket, NodeJS.Timeout>();
+  private readonly idleTimeoutMs = resolveIdleTimeoutMs();
   //   new Map<string, Set<WebSocket>>();
   //             ↑      ↑           ↑
   //          jobId    Set of    WebSocket connections
@@ -56,30 +73,44 @@ export class WebSocketService implements OnModuleInit {
     this.logger.debug(`Client connected to ${jobId}`);
 
     let closed = false;
-    const safetyTimeout = this.setupSafetyTimeout(socket, jobId);
 
     // Register connection
     this.registerConnection(jobId, socket);
+    this.resetIdleTimeout(socket, jobId);
 
     // Cleanup on close
     socket.on('close', () => {
       if (closed) return;
       closed = true;
       this.unregisterConnection(jobId, socket);
-      clearTimeout(safetyTimeout);
+      this.clearIdleTimeout(socket);
       this.logger.debug(`Client disconnected from ${jobId}`);
     });
   }
 
-  private setupSafetyTimeout(socket: WebSocket, jobId: string): NodeJS.Timeout {
-    return setTimeout(() => {
-      if (socket.readyState === WebSocket.OPEN) {
+  private resetIdleTimeout(socket: WebSocket, jobId: string): void {
+    this.clearIdleTimeout(socket);
+
+    const timeout = setTimeout(() => {
+      if (socket.readyState === WS_OPEN_STATE) {
         this.logger.warn(
-          `Closing idle websocket for ${jobId} after ${SAFETY_TIMEOUT_MS / 1000}s timeout`,
+          `Closing idle websocket for ${jobId} after ${this.idleTimeoutMs / 1000}s timeout`,
         );
         socket.close();
       }
-    }, SAFETY_TIMEOUT_MS);
+    }, this.idleTimeoutMs);
+
+    this.socketTimeouts.set(socket, timeout);
+  }
+
+  private clearIdleTimeout(socket: WebSocket): void {
+    const timeout = this.socketTimeouts.get(socket);
+    if (!timeout) {
+      return;
+    }
+
+    clearTimeout(timeout);
+    this.socketTimeouts.delete(socket);
   }
 
   /* ========================================================================
@@ -133,8 +164,9 @@ export class WebSocketService implements OnModuleInit {
     const message = JSON.stringify(event);
     for (const socket of sockets) {
       try {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (socket.readyState === WS_OPEN_STATE) {
           socket.send(message);
+          this.resetIdleTimeout(socket, jobId);
         }
       } catch (error) {
         this.logger.warn(
