@@ -15,14 +15,31 @@ model Company {
     @@map("companies")
 }
 
+model Profile {
+    id              String           @id
+    scope           String           @unique @default("global")
+    email           String?
+    github          String?
+    linkedin        String?
+    personalSite    String?
+    phone           String?
+    createdAt       DateTime         @default(now())
+    updatedAt       DateTime         @updatedAt
+    jobApplications JobApplication[]
+
+    @@map("profiles")
+}
+
 model JobApplication {
     id                String   @id @default(uuid())
     companyId         Int
+    profileId         String
     position          String
     dueDate           DateTime @db.Date
     matchPercentage   Int      @db.SmallInt
     templateId        String
     jobDescription    String
+    extractedContacts Json?
     checklist         Json?
     originalResume    String
     parsedResume      Json?
@@ -35,6 +52,7 @@ model JobApplication {
     updatedAt         DateTime @updatedAt
 
     company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+    profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
 
     @@map("job_applications")
 }

@@ -15,6 +15,7 @@ import {
   RESUME_PARSING_FAILED,
 } from '../types/task.types';
 import { TaskBundle } from './task-bundle';
+import { mergeContactsIntoResumeStructure } from '../jobs/utils/contact-extractor';
 
 @Injectable()
 export class ResumeParsingTask implements TaskBundle {
@@ -41,19 +42,41 @@ export class ResumeParsingTask implements TaskBundle {
     event: Extract<TaskSuccess, { type: 'resume.parsing.completed' }>,
   ): Promise<ResumeParsingCompleted> {
     try {
+      const extractedContacts = await this.jobApplication.getExtractedContacts(
+        event.jobId,
+      );
+      const mergedResumeStructure = mergeContactsIntoResumeStructure(
+        event.resumeStructure,
+        extractedContacts,
+      );
+
       await this.jobApplication.updateParsedResume(
         event.jobId,
-        event.resumeStructure,
+        mergedResumeStructure,
       );
       await this.jobApplication.updateTailoredResume(
         event.jobId,
-        event.resumeStructure,
+        mergedResumeStructure,
       );
+      try {
+        await this.jobApplication.upsertProfileContactsByJob(
+          event.jobId,
+          extractedContacts,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to upsert profile contacts for ${event.jobId}: ${error}`,
+        );
+      }
       this.logger.debug(
         `Saved to both parsedResume and tailoredResume ${event.jobId}`,
       );
-      this.websocket.broadcast(event.jobId, event);
-      return event;
+      const eventWithMergedContacts: ResumeParsingCompleted = {
+        ...event,
+        resumeStructure: mergedResumeStructure,
+      };
+      this.websocket.broadcast(event.jobId, eventWithMergedContacts);
+      return eventWithMergedContacts;
     } catch (error) {
       this.logger.error(
         `Failed to persist parsed resume ${event.jobId}: ${error}`,

@@ -18,6 +18,13 @@ import {
   type ScoreUpdatingCompleted,
 } from '../types/task.types';
 import { Checklist } from 'src/types/checklist.types';
+import {
+  extractDeterministicContacts,
+  type ExtractedContacts,
+} from './utils/contact-extractor';
+
+const GLOBAL_PROFILE_ID = 'global-profile';
+const GLOBAL_PROFILE_SCOPE = 'global';
 
 @Injectable()
 export class JobApplicationService {
@@ -34,6 +41,10 @@ export class JobApplicationService {
     id: string;
   }> {
     const jobId = randomUUID();
+    const profile = await this.ensureGlobalProfile();
+    const extractedContacts = extractDeterministicContacts(
+      dto.rawResumeContent,
+    );
 
     let company = await this.database.company.findUnique({
       where: { name: dto.companyName },
@@ -48,11 +59,14 @@ export class JobApplicationService {
       data: {
         id: jobId,
         companyId: company.id,
+        profileId: profile.id,
         position: dto.position,
         dueDate: new Date(dto.dueDate),
         matchPercentage: 0,
         templateId: dto.templateId,
         jobDescription: dto.jobDescription,
+        extractedContacts:
+          extractedContacts as unknown as Prisma.InputJsonValue,
         originalResume: dto.rawResumeContent,
       },
     });
@@ -150,6 +164,75 @@ export class JobApplicationService {
     } catch (error) {
       this.logger.error(`Failed to update parsedResume ${jobId}`, error);
     }
+  }
+
+  async getExtractedContacts(
+    jobId: string,
+  ): Promise<Partial<ExtractedContacts> | null> {
+    const job = await this.database.jobApplication.findUnique({
+      where: { id: jobId },
+      select: { extractedContacts: true },
+    });
+
+    if (!job?.extractedContacts || typeof job.extractedContacts !== 'object') {
+      return null;
+    }
+
+    return job.extractedContacts as Partial<ExtractedContacts>;
+  }
+
+  async upsertProfileContactsByJob(
+    jobId: string,
+    extractedContacts: Partial<ExtractedContacts> | null,
+  ): Promise<void> {
+    if (!extractedContacts) {
+      return;
+    }
+
+    const job = await this.database.jobApplication.findUnique({
+      where: { id: jobId },
+      select: { profileId: true },
+    });
+
+    if (!job?.profileId) {
+      return;
+    }
+
+    const profile = await this.database.profile.findUnique({
+      where: { id: job.profileId },
+    });
+
+    if (!profile) {
+      return;
+    }
+
+    const updateData: Prisma.ProfileUpdateInput = {};
+    const fields: Array<
+      keyof Pick<
+        ExtractedContacts,
+        'email' | 'github' | 'linkedin' | 'personalSite' | 'phone'
+      >
+    > = ['email', 'github', 'linkedin', 'personalSite', 'phone'];
+
+    for (const field of fields) {
+      const extractedValue = extractedContacts[field];
+      if (
+        typeof extractedValue === 'string' &&
+        extractedValue.trim() !== '' &&
+        (profile[field] === null || profile[field] === '')
+      ) {
+        updateData[field] = extractedValue.trim();
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return;
+    }
+
+    await this.database.profile.update({
+      where: { id: profile.id },
+      data: updateData,
+    });
   }
 
   async getJobApplication(id: string): Promise<{
@@ -387,5 +470,17 @@ export class JobApplicationService {
       message: `Retried ${retriedTasks.length} task(s)`,
       retriedTasks,
     };
+  }
+
+  private ensureGlobalProfile(): Promise<{ id: string }> {
+    return this.database.profile.upsert({
+      where: { scope: GLOBAL_PROFILE_SCOPE },
+      update: {},
+      create: {
+        id: GLOBAL_PROFILE_ID,
+        scope: GLOBAL_PROFILE_SCOPE,
+      },
+      select: { id: true },
+    });
   }
 }
