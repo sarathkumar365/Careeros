@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 
 interface ModalProps {
@@ -35,6 +36,7 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
+  if (typeof document === 'undefined') return null
 
   const widthClass =
     maxWidth === 'sm'
@@ -45,7 +47,7 @@ export function Modal({
           ? 'w-full max-w-5xl'
           : 'w-[500px]'
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/50"
       onClick={onClose}
@@ -62,6 +64,7 @@ export function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
