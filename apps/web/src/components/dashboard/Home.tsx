@@ -1,124 +1,45 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PageHeader } from '@ui/PageHeader'
+import { Link } from '@tanstack/react-router'
 import UploadButton from '@upload/UploadButton'
-import ApplicationCard from '@dashboard/ApplicationCard'
-import {
-  deleteJobApplication,
-  getAllJobApplications,
-  updateJobApplication,
-} from '@/api/jobs'
+import { AppTopNav } from '@/components/navigation/AppTopNav'
 
 export default function HomePage() {
-  const queryClient = useQueryClient()
-  const {
-    data: jobApplications = [],
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['jobApplications'],
-    queryFn: getAllJobApplications,
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: string
-      data: { companyName: string; position: string; dueDate: string }
-    }) => updateJobApplication(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobApplications'] })
-    },
-    onError: (updateError) => {
-      console.error('Failed to update job application:', updateError)
-      alert('Failed to update job application. Please try again.')
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteJobApplication,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobApplications'] })
-    },
-    onError: (deleteError) => {
-      console.error('Failed to delete job application:', deleteError)
-      // TODO: consider use a Toast
-      alert('Failed to delete job application. Please try again.')
-    },
-  })
-
-  const handleEdit = (
-    jobId: string,
-    data: { companyName: string; position: string; dueDate: string },
-  ) => {
-    updateMutation.mutate({ id: jobId, data })
-  }
-
-  const handleDelete = (jobId: string) => {
-    deleteMutation.mutate(jobId)
-  }
-
-  let content
-
-  if (isLoading) {
-    content = (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">Loading applications...</div>
-      </div>
-    )
-  } else if (error) {
-    content = (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-rose-500">
-          Failed to load applications. Please try again.
-        </div>
-      </div>
-    )
-  } else if (jobApplications.length === 0) {
-    content = (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-slate-500">
-          No applications yet. Upload your first resume to get started!
-        </div>
-      </div>
-    )
-  } else {
-    content = (
-      <div className="grid grid-cols-2 justify-items-center gap-x-1 gap-y-8 md:grid-cols-4 md:gap-x-2">
-        {jobApplications.map((app) => (
-          <ApplicationCard
-            key={app.id}
-            jobId={app.id}
-            companyName={app.companyName}
-            position={app.position}
-            dueDate={app.dueDate}
-            percent={app.matchPercentage}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
-    )
-  }
-
   return (
     <div
-      className="flex h-screen flex-col"
+      className="flex min-h-screen flex-col bg-[#f7f7f4]"
       style={{
-        // backgroundColor: '#F9F6EE',
         backgroundImage: `
-          linear-gradient(rgba(209, 213, 219, 0.3) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(209, 213, 219, 0.3) 1px, transparent 1px)
+          radial-gradient(circle at 20% 20%, rgba(226, 232, 240, 0.35), transparent 44%),
+          linear-gradient(rgba(209, 213, 219, 0.22) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(209, 213, 219, 0.22) 1px, transparent 1px)
         `,
-        backgroundSize: '12px 12px',
+        backgroundSize: 'auto, 12px 12px, 12px 12px',
       }}
     >
-      <PageHeader
-        left={<div className="text-2xl font-bold">DASHBOARD</div>}
-        right={<UploadButton />}
-      />
-      <main className="flex-1 overflow-auto p-4">{content}</main>
+      <AppTopNav showNavLinks={false} />
+
+      <main className="flex w-full flex-1 items-center justify-center px-4 py-14 sm:px-6 sm:py-20">
+        <section className="mx-auto w-full max-w-3xl text-center">
+          <p className="text-xs font-semibold tracking-[0.12em] text-slate-600 uppercase">
+            Resume Tailoring Workspace
+          </p>
+          <h1 className="mt-5 text-4xl leading-tight font-semibold tracking-tight text-slate-900 sm:text-6xl">
+            Focused resume tailoring, done right.
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-slate-600">
+            Create cleaner, stronger resumes for the roles you want.
+          </p>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <UploadButton variant="minimal" />
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              View dashboard
+            </Link>
+          </div>
+        </section>
+      </main>
     </div>
   )
 }

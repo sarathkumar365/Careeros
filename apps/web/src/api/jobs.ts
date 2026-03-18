@@ -28,7 +28,8 @@ export const TASK_FAILED_RESULT_TYPES = [
   'score.updating.failed',
 ] as const
 
-export type TaskCompletedResultType = (typeof TASK_COMPLETED_RESULT_TYPES)[number]
+export type TaskCompletedResultType =
+  (typeof TASK_COMPLETED_RESULT_TYPES)[number]
 export type TaskFailedResultType = (typeof TASK_FAILED_RESULT_TYPES)[number]
 export type TaskResultType = TaskCompletedResultType | TaskFailedResultType
 

@@ -107,7 +107,10 @@ function makeStoreRequest<T>(result: T): IDBRequest<T> {
   }
 
   setTimeout(() => {
-    request.onsuccess?.call(request as unknown as IDBRequest<T>, new Event('success'))
+    request.onsuccess?.call(
+      request as unknown as IDBRequest<T>,
+      new Event('success'),
+    )
   }, 0)
 
   return request as unknown as IDBRequest<T>

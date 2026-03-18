@@ -9,7 +9,10 @@ describe('ResumeUploadSection', () => {
     })
 
     render(
-      <ResumeUploadSection selectedFile={initialFile} onFileChange={() => {}} />,
+      <ResumeUploadSection
+        selectedFile={initialFile}
+        onFileChange={() => {}}
+      />,
     )
 
     await waitFor(() => {

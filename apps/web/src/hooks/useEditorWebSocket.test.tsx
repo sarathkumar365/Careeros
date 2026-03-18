@@ -105,10 +105,9 @@ describe('useEditorWebSocket', () => {
     expect(useResumeStore.getState().isTailoringResume).toBe(false)
     expect(useResumeStore.getState().isMatchingTailoredResume).toBe(false)
 
-    const job = queryClient.getQueryData<{ failedTasks: Record<string, string> }>([
-      'jobApplication',
-      'job-1',
-    ])
+    const job = queryClient.getQueryData<{
+      failedTasks: Record<string, string>
+    }>(['jobApplication', 'job-1'])
     expect(job).toBeTruthy()
     if (!job) {
       throw new Error('Missing cached job data')
@@ -145,10 +144,9 @@ describe('useEditorWebSocket', () => {
 
     expect(useResumeStore.getState().isParsingChecklist).toBe(false)
 
-    const job = queryClient.getQueryData<{ failedTasks: Record<string, string> }>([
-      'jobApplication',
-      'job-1',
-    ])
+    const job = queryClient.getQueryData<{
+      failedTasks: Record<string, string>
+    }>(['jobApplication', 'job-1'])
     expect(job).toBeTruthy()
     if (!job) {
       throw new Error('Missing cached job data')

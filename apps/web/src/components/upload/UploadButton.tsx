@@ -16,7 +16,11 @@ export interface UploadModalSubmitPayload {
   dueDate: string
 }
 
-export default function UploadButton() {
+interface UploadButtonProps {
+  variant?: 'default' | 'minimal'
+}
+
+export default function UploadButton({ variant = 'default' }: UploadButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [extractionError, setExtractionError] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -70,15 +74,26 @@ export default function UploadButton() {
 
   return (
     <>
-      <InvertedButton
-        onClick={() => setIsModalOpen(true)}
-        title="New application"
-      >
-        <div className="flex flex-row items-center gap-2">
-          <FilePlus size={16} />
-          <span>NEW</span>
-        </div>
-      </InvertedButton>
+      {variant === 'minimal' ? (
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(true)}
+          className="inline-flex items-center rounded-md border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          title="Start upload"
+        >
+          Start upload
+        </button>
+      ) : (
+        <InvertedButton
+          onClick={() => setIsModalOpen(true)}
+          title="New application"
+        >
+          <div className="flex flex-row items-center gap-2">
+            <FilePlus size={16} />
+            <span>NEW</span>
+          </div>
+        </InvertedButton>
+      )}
 
       <UploadModal
         isOpen={isModalOpen}

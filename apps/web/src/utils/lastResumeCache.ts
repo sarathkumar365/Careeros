@@ -38,10 +38,7 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-function getStore(
-  db: IDBDatabase,
-  mode: IDBTransactionMode,
-): IDBObjectStore {
+function getStore(db: IDBDatabase, mode: IDBTransactionMode): IDBObjectStore {
   const transaction = db.transaction(STORE_NAME, mode)
   return transaction.objectStore(STORE_NAME)
 }
@@ -82,9 +79,9 @@ export async function loadLastResume(): Promise<File | null> {
     const db = await openDb()
     try {
       const store = getStore(db, 'readonly')
-      const record = (await promisifyRequest(
-        store.get(LAST_RESUME_KEY),
-      )) as CachedResumeRecord | undefined
+      const record = (await promisifyRequest(store.get(LAST_RESUME_KEY))) as
+        | CachedResumeRecord
+        | undefined
 
       if (!record) {
         return null

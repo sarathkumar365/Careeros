@@ -11,6 +11,7 @@ import {
 
 import EditorPage from '@editor/Editor'
 import HomePage from '@dashboard/Home'
+import DashboardPage from '@dashboard/DashboardPage'
 import reportWebVitals from './reportWebVitals.ts'
 import * as TanStackQueryProvider from '@/integrations/tanstack-query/root-provider.tsx'
 
@@ -35,6 +36,12 @@ const indexRoute = createRoute({
   component: HomePage,
 })
 
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
+  component: DashboardPage,
+})
+
 const editorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/editor',
@@ -44,7 +51,11 @@ const editorRoute = createRoute({
   }),
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, editorRoute])
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  dashboardRoute,
+  editorRoute,
+])
 
 const TanStackQueryProviderContext = TanStackQueryProvider.getContext()
 const router = createRouter({

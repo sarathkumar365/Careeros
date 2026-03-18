@@ -107,15 +107,15 @@ export type CompletedWebSocketEvent =
 
 export type WebSocketMessage = CompletedWebSocketEvent | JobFailedEvent
 
-export function isTaskCompletedEvent(
-  message: { type: string },
-): message is CompletedWebSocketEvent {
+export function isTaskCompletedEvent(message: {
+  type: string
+}): message is CompletedWebSocketEvent {
   return COMPLETED_EVENT_TYPES.has(message.type)
 }
 
-export function isTaskFailedEvent(
-  message: { type: string },
-): message is JobFailedEvent {
+export function isTaskFailedEvent(message: {
+  type: string
+}): message is JobFailedEvent {
   return FAILED_EVENT_TYPES.has(message.type)
 }
 
@@ -128,7 +128,9 @@ function parseTaskFromFailedType(type: string): TaskMessageType | null {
   return TASK_MESSAGE_TYPES.has(taskType) ? taskType : null
 }
 
-export function getFailedTaskType(message: JobFailedEvent): TaskMessageType | null {
+export function getFailedTaskType(
+  message: JobFailedEvent,
+): TaskMessageType | null {
   if (message.type === MessageType.LEGACY_FAILED) {
     if (!message.error) {
       return null

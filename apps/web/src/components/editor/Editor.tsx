@@ -44,7 +44,7 @@ export function EditorPageLayout({
         left={
           <>
             <InvertedButton
-              onClick={() => navigate({ to: '/' })}
+              onClick={() => navigate({ to: '/dashboard' })}
               ariaLabel="Back to dashboard"
               title="Back"
             >

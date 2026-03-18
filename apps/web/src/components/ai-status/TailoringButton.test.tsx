@@ -39,7 +39,9 @@ describe('TailoringButton', () => {
     })
   })
 
-  function renderButton(props?: Partial<ComponentProps<typeof TailoringButton>>) {
+  function renderButton(
+    props?: Partial<ComponentProps<typeof TailoringButton>>,
+  ) {
     const queryClient = new QueryClient()
 
     return render(

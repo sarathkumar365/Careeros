@@ -137,17 +137,20 @@ function updateFailedTaskInCache(
     return
   }
 
-  context.queryClient.setQueryData(['jobApplication', context.jobId], (old: any) => {
-    if (!old) return old
+  context.queryClient.setQueryData(
+    ['jobApplication', context.jobId],
+    (old: any) => {
+      if (!old) return old
 
-    return {
-      ...old,
-      failedTasks: {
-        ...old.failedTasks,
-        [failedTaskType]: new Date().toISOString(),
-      },
-    }
-  })
+      return {
+        ...old,
+        failedTasks: {
+          ...old.failedTasks,
+          [failedTaskType]: new Date().toISOString(),
+        },
+      }
+    },
+  )
 }
 
 export default function useEditorWebSocket({
@@ -161,7 +164,9 @@ export default function useEditorWebSocket({
   const shouldReconnectRef = useRef(true)
 
   const setParsingResume = useResumeStore((state) => state.setParsingResume)
-  const setParsingChecklist = useResumeStore((state) => state.setParsingChecklist)
+  const setParsingChecklist = useResumeStore(
+    (state) => state.setParsingChecklist,
+  )
   const setTailoringResume = useResumeStore((state) => state.setTailoringResume)
   const setMatchingTailoredResume = useResumeStore(
     (state) => state.setMatchingTailoredResume,
@@ -287,7 +292,10 @@ export default function useEditorWebSocket({
         }
 
         if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-          console.warn('[Editor WS] Max reconnect attempts reached for job:', jobId)
+          console.warn(
+            '[Editor WS] Max reconnect attempts reached for job:',
+            jobId,
+          )
           return
         }
 
@@ -323,7 +331,11 @@ export default function useEditorWebSocket({
 
       const ws = wsRef.current
       wsRef.current = null
-      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      if (
+        ws &&
+        (ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING)
+      ) {
         console.log('[Editor WS] Closing WebSocket for job:', jobId)
         ws.close()
       }
