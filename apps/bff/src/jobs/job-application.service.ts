@@ -12,7 +12,7 @@ import {
   TailorResumeDto,
   RetryFailedTasksDto,
 } from './dto/job-application.dto';
-import { requireJobApplication } from './utils/job-validation';
+import { requireAccessibleJobApplication } from './utils/job-validation';
 import {
   SCORE_UPDATING_COMPLETED,
   type ScoreUpdatingCompleted,
@@ -22,6 +22,7 @@ import {
   extractDeterministicContacts,
   type ExtractedContacts,
 } from './utils/contact-extractor';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
 
 const GLOBAL_PROFILE_ID = 'global-profile';
 const GLOBAL_PROFILE_SCOPE = 'global';
@@ -37,7 +38,10 @@ export class JobApplicationService {
     private readonly workflow: WorkflowService,
   ) {}
 
-  async createJobApplication(dto: CreateJobApplicationDto): Promise<{
+  async createJobApplication(
+    dto: CreateJobApplicationDto,
+    user: AuthenticatedUser,
+  ): Promise<{
     id: string;
   }> {
     const jobId = randomUUID();
@@ -68,6 +72,7 @@ export class JobApplicationService {
         extractedContacts:
           extractedContacts as unknown as Prisma.InputJsonValue,
         originalResume: dto.rawResumeContent,
+        userId: user.id,
       },
     });
 
@@ -87,11 +92,7 @@ export class JobApplicationService {
     };
   }
 
-  /**
-   * there is no user account or user id
-   * fetch every application from db and send to frontend
-   */
-  async getAllJobApplications(): Promise<
+  async getAllJobApplications(user: AuthenticatedUser): Promise<
     Array<{
       id: string;
       companyName: string;
@@ -104,6 +105,7 @@ export class JobApplicationService {
     }>
   > {
     const jobApplications = await this.database.jobApplication.findMany({
+      where: user.role === 'ADMIN' ? undefined : { userId: user.id },
       include: {
         company: true,
       },
@@ -235,7 +237,10 @@ export class JobApplicationService {
     });
   }
 
-  async getJobApplication(id: string): Promise<{
+  async getJobApplication(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{
     id: string;
     companyName: string;
     position: string;
@@ -252,11 +257,16 @@ export class JobApplicationService {
     workflowStatus: string | null;
     failedTasks: Record<string, unknown>;
   }> {
-    const jobApplication = await requireJobApplication(this.database, id, {
-      include: {
-        company: true,
+    const jobApplication = await requireAccessibleJobApplication(
+      this.database,
+      id,
+      user,
+      {
+        include: {
+          company: true,
+        },
       },
-    });
+    );
 
     // Compute failedTasks from workflowSteps for backwards compatibility
     const workflowSteps = jobApplication.workflowSteps as Record<
@@ -300,8 +310,11 @@ export class JobApplicationService {
     };
   }
 
-  async deleteJobApplication(id: string): Promise<{ success: boolean }> {
-    await requireJobApplication(this.database, id);
+  async deleteJobApplication(
+    id: string,
+    user: AuthenticatedUser,
+  ): Promise<{ success: boolean }> {
+    await requireAccessibleJobApplication(this.database, id, user);
     // Delete from database (this will cascade delete if configured)
     await this.database.jobApplication.delete({
       where: { id },
@@ -318,6 +331,7 @@ export class JobApplicationService {
   async updateJobApplication(
     id: string,
     dto: UpdateJobApplicationDto,
+    user: AuthenticatedUser,
   ): Promise<{
     id: string;
     companyName: string;
@@ -328,9 +342,14 @@ export class JobApplicationService {
     this.logger.log(`Updating job application ${id}`, dto);
 
     // Find existing job application with company
-    const jobApplication = await requireJobApplication(this.database, id, {
-      include: { company: true },
-    });
+    const jobApplication = await requireAccessibleJobApplication(
+      this.database,
+      id,
+      user,
+      {
+        include: { company: true },
+      },
+    );
 
     // If company name is being updated, find or create the company
     let companyId = jobApplication.companyId;
@@ -382,8 +401,9 @@ export class JobApplicationService {
   async tailorResume(
     jobId: string,
     dto: TailorResumeDto,
+    user: AuthenticatedUser,
   ): Promise<{ success: boolean }> {
-    await requireJobApplication(this.database, jobId);
+    await requireAccessibleJobApplication(this.database, jobId, user);
 
     await this.workflow.tailorResume(jobId, {
       checklist: dto.checklist as Checklist,
@@ -397,7 +417,9 @@ export class JobApplicationService {
   async saveResume(
     jobId: string,
     dto: SaveResumeDto,
+    user: AuthenticatedUser,
   ): Promise<{ success: boolean }> {
+    await requireAccessibleJobApplication(this.database, jobId, user);
     // parsedResume in database IS ALWAYS representing USER'S ORIGINAL RESUME
     //
     // USER INPUT WILL NOT UPDATE THE CHECKLIST
@@ -453,12 +475,13 @@ export class JobApplicationService {
   async retryFailedTasks(
     jobId: string,
     dto: RetryFailedTasksDto,
+    user: AuthenticatedUser,
   ): Promise<{
     success: boolean;
     message: string;
     retriedTasks: string[];
   }> {
-    await requireJobApplication(this.database, jobId);
+    await requireAccessibleJobApplication(this.database, jobId, user);
 
     const retriedTasks = await this.workflow.retryFailedTasks(
       jobId,

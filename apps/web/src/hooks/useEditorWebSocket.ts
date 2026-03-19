@@ -25,6 +25,7 @@ interface UseEditorWebSocketOptions {
 
 const MAX_RECONNECT_ATTEMPTS = 3
 const RECONNECT_BASE_DELAY_MS = 1000
+const POLICY_VIOLATION_CLOSE_CODE = 1008
 
 function nextReconnectDelay(attempt: number): number {
   return RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1)
@@ -287,7 +288,7 @@ export default function useEditorWebSocket({
           return
         }
 
-        if (event.code === 1000) {
+        if (event.code === 1000 || event.code === POLICY_VIOLATION_CLOSE_CODE) {
           return
         }
 

@@ -266,4 +266,29 @@ describe('useEditorWebSocket', () => {
 
     expect(FakeWebSocket.instances).toHaveLength(2)
   })
+
+  it('does not reconnect on policy violation close', () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(['jobApplication', 'job-1'], {
+      failedTasks: {},
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <HookHarness />
+      </QueryClientProvider>,
+    )
+
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    act(() => {
+      FakeWebSocket.instances[0].serverClose(1008, true)
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(8000)
+    })
+
+    expect(FakeWebSocket.instances).toHaveLength(1)
+  })
 })

@@ -26,3 +26,7 @@ bun run start:prod
 - Default port: 3001
 - Fastify adapter configured
 - CORS handled by frontend proxy
+- Auth environment variables:
+  - `AUTH_JWT_SECRET` (required outside local dev)
+  - `AUTH_JWT_EXPIRES_IN` (optional, default `7d`)
+  - `AUTH_ADMIN_EMAIL` + `AUTH_ADMIN_PASSWORD` (optional admin bootstrap)

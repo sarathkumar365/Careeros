@@ -1,6 +1,8 @@
+import { API_BASE_URL } from './config'
+import { apiFetch, parseApiError } from './http'
 import type { Checklist } from '@type/checklist'
 
-export const API_BASE_URL: string = import.meta.env.VITE_BFF_URL ?? '/api'
+export { API_BASE_URL }
 
 export const TASK_MESSAGE_TYPES = [
   'resume.parsing',
@@ -92,8 +94,7 @@ export interface UpdateJobApplicationPayload {
 export async function createJobApplication(
   payload: CreateJobApplicationPayload,
 ): Promise<CreateJobApplicationResponse> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs`
-  const response = await fetch(url, {
+  const response = await apiFetch('/jobs', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -102,28 +103,19 @@ export async function createJobApplication(
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to create job application (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 
   return (await response.json()) as CreateJobApplicationResponse
 }
 
 export async function getAllJobApplications(): Promise<Array<JobApplication>> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs`
-  const response = await fetch(url, {
+  const response = await apiFetch('/jobs', {
     method: 'GET',
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to get job applications (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 
   return (await response.json()) as Array<JobApplication>
@@ -132,17 +124,12 @@ export async function getAllJobApplications(): Promise<Array<JobApplication>> {
 export async function getJobApplication(
   id: string,
 ): Promise<JobApplicationDetails> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs/${id}`
-  const response = await fetch(url, {
+  const response = await apiFetch(`/jobs/${id}`, {
     method: 'GET',
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to get job application (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 
   return (await response.json()) as JobApplicationDetails
@@ -152,8 +139,7 @@ export async function updateJobApplication(
   id: string,
   payload: UpdateJobApplicationPayload,
 ): Promise<void> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs/${id}`
-  const response = await fetch(url, {
+  const response = await apiFetch(`/jobs/${id}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -162,26 +148,17 @@ export async function updateJobApplication(
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to update job application (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 }
 
 export async function deleteJobApplication(id: string): Promise<void> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs/${id}`
-  const response = await fetch(url, {
+  const response = await apiFetch(`/jobs/${id}`, {
     method: 'DELETE',
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to delete job application (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 }
 
@@ -190,8 +167,7 @@ export async function saveResume(
   resumeStructure: Record<string, unknown>,
   templateId: string,
 ): Promise<GeneralAPIResponse> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs/${jobId}/resume`
-  const response = await fetch(url, {
+  const response = await apiFetch(`/jobs/${jobId}/resume`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -200,10 +176,7 @@ export async function saveResume(
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message || `Failed to save resume (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 
   return (await response.json()) as GeneralAPIResponse
@@ -213,8 +186,7 @@ export async function tailorResume(
   jobId: string,
   payload: TailorResumePayload,
 ): Promise<GeneralAPIResponse> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs/${jobId}/resume/tailor`
-  const response = await fetch(url, {
+  const response = await apiFetch(`/jobs/${jobId}/resume/tailor`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -223,11 +195,7 @@ export async function tailorResume(
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to tailor resume (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 
   return (await response.json()) as GeneralAPIResponse
@@ -243,8 +211,7 @@ export async function retryFailedTasks(
   jobId: string,
   jsonSchema?: Record<string, unknown>,
 ): Promise<RetryFailedTasksResponse> {
-  const url = `${API_BASE_URL.replace(/\/$/, '')}/jobs/${jobId}/retry`
-  const response = await fetch(url, {
+  const response = await apiFetch(`/jobs/${jobId}/retry`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -253,11 +220,7 @@ export async function retryFailedTasks(
   })
 
   if (!response.ok) {
-    const errorBody = await response.json()
-    throw new Error(
-      errorBody?.message ||
-        `Failed to retry failed tasks (status ${response.status})`,
-    )
+    throw await parseApiError(response)
   }
 
   return (await response.json()) as RetryFailedTasksResponse

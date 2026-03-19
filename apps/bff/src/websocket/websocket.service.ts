@@ -3,6 +3,10 @@ import { HttpAdapterHost } from '@nestjs/core';
 import type { FastifyRequest, FastifyInstance } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
 import type { TaskResult } from '../types/task.types';
+import { AUTH_COOKIE_NAME } from '../auth/auth.constants';
+import { AuthService } from '../auth/auth.service';
+import { DatabaseService } from '../database/database.service';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
 
 interface JobRouteParams {
   jobId?: string;
@@ -45,7 +49,11 @@ export class WebSocketService implements OnModuleInit {
   //             ↑      ↑           ↑
   //          jobId    Set of    WebSocket connections
 
-  constructor(private readonly adapterHost: HttpAdapterHost) {}
+  constructor(
+    private readonly adapterHost: HttpAdapterHost,
+    private readonly authService: AuthService,
+    private readonly database: DatabaseService,
+  ) {}
 
   /* ========================================================================
    * Route Setup & Connection Lifecycle
@@ -63,12 +71,49 @@ export class WebSocketService implements OnModuleInit {
     this.fastify.get(
       '/jobs/:jobId/events',
       { websocket: true },
-      (socket: WebSocket, request) => this.handleConnection(socket, request),
+      (socket: WebSocket, request) => {
+        void this.handleConnection(socket, request);
+      },
     );
   }
 
-  private handleConnection(socket: WebSocket, request: FastifyRequest) {
+  private async handleConnection(socket: WebSocket, request: FastifyRequest) {
     const { jobId = 'unknown' } = request.params as JobRouteParams;
+    const cookies = (
+      request as FastifyRequest & { cookies?: Record<string, string> }
+    ).cookies;
+    const token = cookies?.[AUTH_COOKIE_NAME];
+
+    if (!token) {
+      this.logger.warn(`Rejected websocket connection for ${jobId}: no auth`);
+      socket.close(1008, 'Unauthorized');
+      return;
+    }
+
+    let user: AuthenticatedUser;
+    try {
+      user = await this.authService.resolveUserFromToken(token);
+      const isAuthorized = await this.canAccessJob(user, jobId);
+      if (!isAuthorized) {
+        this.logger.warn(
+          `Rejected websocket connection for ${jobId}: user ${user.id} forbidden`,
+        );
+        socket.close(1008, 'Forbidden');
+        return;
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        this.logger.warn(
+          `Rejected websocket connection for ${jobId}: ${error.message}`,
+        );
+      } else {
+        this.logger.warn(
+          `Rejected websocket connection for ${jobId}: authorization error`,
+        );
+      }
+      socket.close(1008, 'Unauthorized');
+      return;
+    }
 
     this.logger.debug(`Client connected to ${jobId}`);
 
@@ -86,6 +131,26 @@ export class WebSocketService implements OnModuleInit {
       this.clearIdleTimeout(socket);
       this.logger.debug(`Client disconnected from ${jobId}`);
     });
+  }
+
+  private async canAccessJob(
+    user: AuthenticatedUser,
+    jobId: string,
+  ): Promise<boolean> {
+    const job = await this.database.jobApplication.findUnique({
+      where: { id: jobId },
+      select: { id: true, userId: true },
+    });
+
+    if (!job) {
+      return false;
+    }
+
+    if (user.role === 'ADMIN') {
+      return true;
+    }
+
+    return job.userId === user.id;
   }
 
   private resetIdleTimeout(socket: WebSocket, jobId: string): void {

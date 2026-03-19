@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ScoringModule } from './scoring/scoring.module';
@@ -9,6 +10,7 @@ import { WebsocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
+    AuthModule,
     DatabaseModule,
     RabbitMqModule,
     ScoringModule,

@@ -78,13 +78,13 @@ const SplitText: React.FC<SplitTextProps> = ({
       const start = `top ${startPct}%${sign}`
       let targets: Array<Element> = []
       const assignTargets = (self: GSAPSplitText) => {
-        if (splitType.includes('chars') && self.chars?.length)
+        if (splitType.includes('chars') && self.chars.length > 0)
           targets = self.chars
-        if (!targets.length && splitType.includes('words') && self.words.length)
+        if (!targets.length && splitType.includes('words') && self.words.length > 0)
           targets = self.words
-        if (!targets.length && splitType.includes('lines') && self.lines.length)
+        if (!targets.length && splitType.includes('lines') && self.lines.length > 0)
           targets = self.lines
-        if (!targets.length) targets = self.chars || self.words || self.lines
+        if (!targets.length) targets = self.chars
       }
       const splitInstance = new GSAPSplitText(el, {
         type: splitType,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { HttpAdapterHost } from '@nestjs/core';
 import type { WebSocket } from '@fastify/websocket';
 import type { FastifyRequest } from 'fastify';
@@ -31,6 +32,14 @@ type WsRouteHandler = (socket: WebSocket, request: FastifyRequest) => void;
 function createService(): {
   service: WebSocketService;
   getRouteHandler: () => WsRouteHandler | null;
+  authService: {
+    resolveUserFromToken: jest.Mock;
+  };
+  database: {
+    jobApplication: {
+      findUnique: jest.Mock;
+    };
+  };
 } {
   let routeHandler: WsRouteHandler | null = null;
   const getMock = jest.fn(
@@ -48,19 +57,40 @@ function createService(): {
     },
   } as unknown as HttpAdapterHost;
 
-  const service = new WebSocketService(adapterHost);
+  const authService = {
+    resolveUserFromToken: jest
+      .fn()
+      .mockResolvedValue({ id: 'user-1', role: 'USER', email: 'u@e.com' }),
+  };
+
+  const database = {
+    jobApplication: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ id: 'job-1', userId: 'user-1' }),
+    },
+  };
+
+  const service = new WebSocketService(
+    adapterHost,
+    authService as any,
+    database as any,
+  );
   service.onModuleInit();
 
   return {
     service,
     getRouteHandler: () => routeHandler,
+    authService,
+    database,
   };
 }
 
-function connectSocket(
+async function connectSocket(
   getRouteHandler: () => WsRouteHandler | null,
   jobId: string,
-): FakeSocket {
+  requestOverrides?: Partial<FastifyRequest>,
+): Promise<FakeSocket> {
   const routeHandler = getRouteHandler();
   expect(routeHandler).not.toBeNull();
   if (!routeHandler) {
@@ -71,9 +101,16 @@ function connectSocket(
   const socket = fakeSocket as unknown as WebSocket;
   const request = {
     params: { jobId },
+    cookies: { careeros_auth: 'token' },
+    ...requestOverrides,
   } as unknown as FastifyRequest;
 
   routeHandler(socket, request);
+  // Route handler is async; flush a few microtasks so auth/ownership checks
+  // complete before assertions/timer advances.
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
   return fakeSocket;
 }
 
@@ -86,12 +123,12 @@ describe('WebSocketService', () => {
     jest.useRealTimers();
   });
 
-  it('uses env idle timeout when provided', () => {
+  it('uses env idle timeout when provided', async () => {
     process.env.WEBSOCKET_IDLE_TIMEOUT_MS = '45';
     jest.useFakeTimers();
 
     const { getRouteHandler } = createService();
-    const fakeSocket = connectSocket(getRouteHandler, 'job-1');
+    const fakeSocket = await connectSocket(getRouteHandler, 'job-1');
 
     jest.advanceTimersByTime(44);
     expect(fakeSocket.closeCalls).toBe(0);
@@ -100,12 +137,12 @@ describe('WebSocketService', () => {
     expect(fakeSocket.closeCalls).toBe(1);
   });
 
-  it('falls back to default timeout for invalid env value', () => {
+  it('falls back to default timeout for invalid env value', async () => {
     process.env.WEBSOCKET_IDLE_TIMEOUT_MS = 'invalid';
     jest.useFakeTimers();
 
     const { getRouteHandler } = createService();
-    const fakeSocket = connectSocket(getRouteHandler, 'job-1');
+    const fakeSocket = await connectSocket(getRouteHandler, 'job-1');
 
     jest.advanceTimersByTime(5 * 60 * 1000 - 1);
     expect(fakeSocket.closeCalls).toBe(0);
@@ -114,12 +151,12 @@ describe('WebSocketService', () => {
     expect(fakeSocket.closeCalls).toBe(1);
   });
 
-  it('resets idle timeout after broadcast send', () => {
+  it('resets idle timeout after broadcast send', async () => {
     process.env.WEBSOCKET_IDLE_TIMEOUT_MS = '50';
     jest.useFakeTimers();
 
     const { service, getRouteHandler } = createService();
-    const fakeSocket = connectSocket(getRouteHandler, 'job-1');
+    const fakeSocket = await connectSocket(getRouteHandler, 'job-1');
 
     jest.advanceTimersByTime(30);
     service.broadcast('job-1', {
@@ -135,6 +172,26 @@ describe('WebSocketService', () => {
     expect(fakeSocket.closeCalls).toBe(0);
 
     jest.advanceTimersByTime(30);
+    expect(fakeSocket.closeCalls).toBe(1);
+  });
+
+  it('rejects websocket connection when cookie is missing', async () => {
+    const { getRouteHandler } = createService();
+    const fakeSocket = await connectSocket(getRouteHandler, 'job-1', {
+      cookies: {},
+    } as unknown as FastifyRequest);
+
+    expect(fakeSocket.closeCalls).toBe(1);
+  });
+
+  it('rejects websocket connection when user cannot access job', async () => {
+    const { getRouteHandler, database } = createService();
+    database.jobApplication.findUnique.mockResolvedValueOnce({
+      id: 'job-2',
+      userId: 'other-user',
+    });
+
+    const fakeSocket = await connectSocket(getRouteHandler, 'job-2');
     expect(fakeSocket.closeCalls).toBe(1);
   });
 });

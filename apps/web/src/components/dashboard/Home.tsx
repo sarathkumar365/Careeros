@@ -1,8 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import UploadButton from '@upload/UploadButton'
 import { AppTopNav } from '@/components/navigation/AppTopNav'
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 export default function HomePage() {
+  const { isAuthenticated } = useAuthSession()
+
   return (
     <div
       className="flex min-h-screen flex-col bg-[#f7f7f4]"
@@ -30,13 +33,32 @@ export default function HomePage() {
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <UploadButton variant="minimal" />
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              View dashboard
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <UploadButton variant="minimal" />
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  View dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/sign-up"
+                  className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                >
+                  Create account
+                </Link>
+                <Link
+                  to="/sign-in"
+                  className="inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </section>
       </main>

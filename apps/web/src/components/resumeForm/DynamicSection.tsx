@@ -117,11 +117,6 @@ export function DynamicSection({ schema }: DynamicSectionProps) {
     addEntry(schema.id)
   }
 
-  // Handle case where data doesn't exist yet
-  if (!data) {
-    return null
-  }
-
   if (!schema.multiple) {
     const sectionData = data as SectionEntry
     return (
@@ -154,12 +149,6 @@ export function DynamicSection({ schema }: DynamicSectionProps) {
         </InvertedCircleButton>
       }
     >
-      {entries.length === 0 && (
-        <p className="mb-2 text-xs text-gray-500 italic">
-          No {schema.label.toLowerCase()} added yet.
-        </p>
-      )}
-
       {entries.map((entry: SectionEntry, index: number) => (
         <EntryItem
           key={index}

@@ -1,5 +1,7 @@
+import 'dotenv/config';
 import websocket from '@fastify/websocket';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
@@ -33,6 +35,7 @@ async function bootstrap() {
     });
   }
 
+  await fastifyInstance.register(cookie);
   await app.register(websocket);
   await app.listen(process.env.PORT ?? 3001, '0.0.0.0');
 }

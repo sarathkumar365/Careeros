@@ -9,6 +9,7 @@
  */
 
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { QueueModule } from '../queue/queue.module';
 import { ScoringModule } from '../scoring/scoring.module';
 import { WebsocketModule } from '../websocket/websocket.module';
@@ -17,7 +18,13 @@ import { JobsController } from './jobs.controller';
 import { JobApplicationService } from './job-application.service';
 
 @Module({
-  imports: [QueueModule, ScoringModule, WebsocketModule, WorkflowModule],
+  imports: [
+    AuthModule,
+    QueueModule,
+    ScoringModule,
+    WebsocketModule,
+    WorkflowModule,
+  ],
   controllers: [JobsController],
   providers: [JobApplicationService],
   exports: [JobApplicationService],

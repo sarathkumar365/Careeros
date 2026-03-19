@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { FilePlus } from 'lucide-react'
 import type { JobApplicationInput } from '@/api/jobs'
-import { InvertedButton } from '@/components/ui/InvertedButton'
 import UploadModal from '@/components/upload/UploadModal'
 import { useCreateJobApplication } from '@/hooks/useCreateJobApplication'
 import { extractResumeText } from '@/utils/resumeTextExtractor'
@@ -78,21 +77,21 @@ export default function UploadButton({ variant = 'default' }: UploadButtonProps)
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center rounded-md border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          className="inline-flex h-8 items-center rounded-full border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
           title="Start upload"
         >
           Start upload
         </button>
       ) : (
-        <InvertedButton
+        <button
+          type="button"
           onClick={() => setIsModalOpen(true)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-900 bg-slate-900 px-3 text-xs font-medium text-white transition hover:bg-slate-800"
           title="New application"
         >
-          <div className="flex flex-row items-center gap-2">
-            <FilePlus size={16} />
-            <span>NEW</span>
-          </div>
-        </InvertedButton>
+          <FilePlus size={13} />
+          <span>New</span>
+        </button>
       )}
 
       <UploadModal

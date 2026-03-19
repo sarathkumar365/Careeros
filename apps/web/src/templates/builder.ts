@@ -1,10 +1,3 @@
-import type { z } from 'zod'
-import type { Section, TemplateData } from '@templates/template.types'
-import type { TemplateConfig } from '@templates/templateId'
-import { TemplateId } from '@templates/templateId'
-import { SECTION_IDS } from '@templates/template.types'
-import { GlobalHelpersSection } from '@templates/shared/document-config'
-
 import {
   CertificatesSection,
   EducationSection,
@@ -15,6 +8,12 @@ import {
   SummarySection,
   WorkExperienceSection,
 } from '@templates/sections'
+import { GlobalHelpersSection } from '@templates/shared/document-config'
+import { SECTION_IDS } from '@templates/template.types'
+import { TemplateId } from '@templates/templateId'
+import type { Section, TemplateData } from '@templates/template.types'
+import type { TemplateConfig } from '@templates/templateId'
+import type { z } from 'zod'
 
 /**
  * Section registry: maps section IDs to their class constructors
